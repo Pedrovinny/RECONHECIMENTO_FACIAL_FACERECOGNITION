@@ -2,7 +2,7 @@ from deepface import DeepFace
 
 # Limite padrao do VGG-Face+cosine e 0.68 (quanto menor, mais parecido precisa ser).
 # Afrouxado para tolerar oculos/objetos no rosto, ao custo de mais falsos positivos.
-LIMIAR_SIMILARIDADE = 0.68
+LIMIAR_SIMILARIDADE = 0.70
 
 def reconhece_frame(frame):
     try:
