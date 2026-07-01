@@ -27,6 +27,28 @@ def distancia(c1, c2):
     return ((c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2) ** 0.5
 
 
+def remover_sobrepostas(faces, limite_sobreposicao=0.3):
+    # Haar Cascade as vezes detecta o mesmo rosto em 2 caixas sobrepostas;
+    # mantem so a maior de cada grupo que se sobrepoe.
+    faces_ordenadas = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
+    mantidas = []
+
+    for (x, y, w, h) in faces_ordenadas:
+        sobrepoe = False
+        for (mx, my, mw, mh) in mantidas:
+            ix1, iy1 = max(x, mx), max(y, my)
+            ix2, iy2 = min(x + w, mx + mw), min(y + h, my + mh)
+            interseccao = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+            menor_area = min(w * h, mw * mh)
+            if menor_area > 0 and interseccao / menor_area > limite_sobreposicao:
+                sobrepoe = True
+                break
+        if not sobrepoe:
+            mantidas.append((x, y, w, h))
+
+    return mantidas
+
+
 def worker_reconhecimento():
     global rostos_reconhecidos
     while True:
@@ -58,6 +80,7 @@ while True:
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+    faces = remover_sobrepostas(faces)
 
     with lock:
         frame_compartilhado = frame.copy()
