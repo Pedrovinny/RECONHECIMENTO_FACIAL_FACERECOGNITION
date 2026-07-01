@@ -4,17 +4,18 @@ Projeto de TCC de alunos do Ensino Médio: um sistema de identificação de rost
 
 ## Como funciona
 
-1. A webcam captura o vídeo continuamente.
-2. Cada frame é convertido para escala de cinza e passado por um classificador Haar Cascade (OpenCV), que localiza os rostos presentes na imagem — essa etapa é rápida e roda a cada frame.
-3. Para cada rosto detectado, o recorte é enviado ao DeepFace, que compara o rosto contra o banco de imagens em [img/](img/) e retorna o nome da pessoa mais parecida (ou "Desconhecido" se não houver correspondência). Essa comparação é mais pesada, então só é feita a cada 2 frames.
-4. Um cache temporal (2 segundos) guarda o último nome identificado por posição, evitando que o rótulo pisque quando o rosto sai momentaneamente do quadro.
-5. O nome e um retângulo são desenhados sobre o rosto na janela de vídeo. Pressione `q` para encerrar.
+O reconhecimento roda em uma thread separada da captura/exibição de vídeo, para a imagem não travar enquanto o DeepFace processa:
+
+1. **Loop principal (`webcam.py`)** — captura o vídeo continuamente e detecta rostos a cada frame com um classificador Haar Cascade (OpenCV), que é rápido. Os retângulos são desenhados na hora, então a imagem fica sempre fluida, independente da velocidade do reconhecimento.
+2. **Thread de reconhecimento** — em paralelo, a cada `INTERVALO_RECONHECIMENTO` segundos (padrão: 1s), pega o frame e os rostos detectados mais recentes, recorta cada rosto e chama `reconhece_frame()` (`engine.py`), que usa o DeepFace para comparar contra o banco de imagens em [img/](img/).
+3. **Casamento por posição** — como a thread de reconhecimento é mais lenta que o loop de exibição, o nome de cada rosto detectado agora é casado com o resultado reconhecido mais próximo (por distância entre centros), dentro de uma janela de memória (`TEMPO_MEMORIA`, padrão: 2s). Isso evita que o rótulo suma ou pisque enquanto a pessoa se move.
+4. O nome (ou "Desconhecido") e um retângulo verde são desenhados sobre cada rosto. Pressione `q` para encerrar.
 
 ## Estrutura do projeto
 
 | Arquivo | Responsabilidade |
 |---|---|
-| [webcam.py](webcam.py) | Script principal — captura da câmera, detecção de rostos (Haar Cascade) e exibição em tempo real. |
+| [webcam.py](webcam.py) | Script principal — captura da câmera, detecção de rostos (Haar Cascade), thread de reconhecimento em background e exibição em tempo real. |
 | [engine.py](engine.py) | Motor de reconhecimento — `reconhece_frame()` usa o DeepFace para comparar um rosto contra o banco em `img/`. |
 | [fotos.py](fotos.py) | Teste offline — reconhece o rosto de `img/desconhecido.png` contra o mesmo banco, sem usar a webcam. |
 | [img/](img/) | Banco de rostos conhecidos. Cada imagem representa uma pessoa (o nome do arquivo vira o nome exibido no reconhecimento). |
@@ -22,7 +23,7 @@ Projeto de TCC de alunos do Ensino Médio: um sistema de identificação de rost
 ## Tecnologias
 
 - **[OpenCV](https://opencv.org/)** — captura de vídeo e detecção rápida de rostos (Haar Cascade).
-- **[DeepFace](https://github.com/serengil/deepface)** — geração de embeddings faciais e comparação com o banco de imagens.
+- **[DeepFace](https://github.com/serengil/deepface)** — geração de embeddings faciais (modelo VGG-Face) e comparação com o banco de imagens.
 - **NumPy** — suporte a operações com os frames de vídeo.
 
 ## Instalação
@@ -49,4 +50,14 @@ Projeto de TCC de alunos do Ensino Médio: um sistema de identificação de rost
 
 ## Adicionando novas pessoas
 
-Basta colocar uma foto do rosto da pessoa dentro de [img/](img/), nomeando o arquivo com o nome que deve aparecer no reconhecimento (ex: `joao.png`). Na primeira execução seguinte, o DeepFace reprocessa o banco automaticamente.
+Basta colocar uma foto do rosto da pessoa dentro de [img/](img/), nomeando o arquivo com o nome que deve aparecer no reconhecimento (ex: `joao.png`). Na primeira execução seguinte, o DeepFace reprocessa o banco automaticamente (o cache de embeddings, um arquivo `.pkl` dentro de `img/`, é gerado localmente e não é versionado no git).
+
+## Ajustes finos
+
+Esses parâmetros podem ser alterados diretamente no código conforme a necessidade:
+
+| Parâmetro | Arquivo | Efeito |
+|---|---|---|
+| `LIMIAR_SIMILARIDADE` | `engine.py` | Quão parecido um rosto precisa ser para ser reconhecido. Valor padrão do DeepFace (VGG-Face + cosine) é `0.68`; está em `0.80` para tolerar melhor variações como óculos, ângulo e iluminação. Subir esse valor aumenta a tolerância (mais reconhecimentos, porém mais risco de confundir pessoas parecidas); descer deixa mais rígido. |
+| `INTERVALO_RECONHECIMENTO` | `webcam.py` | Frequência (em segundos) com que a thread de reconhecimento roda. Valores menores identificam mais rápido, porém consomem mais CPU. |
+| `TEMPO_MEMORIA` | `webcam.py` | Por quantos segundos um nome reconhecido continua sendo exibido depois da última confirmação, evitando que o rótulo pisque. |
