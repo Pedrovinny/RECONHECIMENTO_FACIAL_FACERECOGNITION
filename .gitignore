@@ -136,6 +136,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# DeepFace embeddings cache (regenerado automaticamente a partir de img/)
+img/*.pkl
+
 # Spyder project settings
 .spyderproject
 .spyproject
